@@ -94,14 +94,16 @@ def parse_method(args, dataset, n, c, d, device, num_relations):
 
 
 def parser_add_main_args(parser):
-    parser.add_argument('--dataset', type=str, default='pokec')
+    parser.add_argument('--dataset', type=str, default='genius')
+    # fb100 pokec arxiv-year snap-patents genius twitch-gamer yelp-chi   
     parser.add_argument('--sub_dataset', type=str, default='')
     parser.add_argument('--hidden_channels', type=int, default=128)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--method', '-m', type=str, default='mlpnorm')
-    parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--cpu', action='store_true')
+    parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--weight_decay', type=float, default=1e-3)
     parser.add_argument('--display_step', type=int,
                         default=1, help='how often to print')

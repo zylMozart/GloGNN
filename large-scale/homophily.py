@@ -3,21 +3,26 @@ import torch
 from torch_scatter import scatter_add
 from torch_geometric.utils import remove_self_loops
 
+def attribute_homophily(edge_index, feat, node_nums):
+    edge_index = torch.cat([edge_index,edge_index[[1,0],:]],dim=1)
+    hom = ((feat[edge_index[0]]==feat[edge_index[1]])).sum(dim=1)/feat.shape[1]
+    return float(hom.mean())
 
-def edge_homophily(A, labels, ignore_negative=False):
+def edge_homophily(edge_index, labels, ignore_negative=False):
     """ gives edge homophily, i.e. proportion of edges that are intra-class
     compute homophily of classes in labels vector
     See Zhu et al. 2020 "Beyond Homophily ..."
     if ignore_negative = True, then only compute for edges where nodes both have
         nonnegative class labels (negative class labels are treated as missing
     """
-    src_node, targ_node = A.nonzero()
-    matching = labels[src_node] == labels[targ_node]
+    edge_index = torch.cat([edge_index,edge_index[[1,0],:]],dim=1)
+    src_node, targ_node = edge_index[0],edge_index[1]
+    matching = (labels[src_node] == labels[targ_node])
     labeled_mask = (labels[src_node] >= 0) * (labels[targ_node] >= 0)
     if ignore_negative:
         edge_hom = np.mean(matching[labeled_mask])
     else:
-        edge_hom = np.mean(matching)
+        edge_hom = float(matching.float().mean())
     return edge_hom
 
 def compat_matrix(A, labels):
@@ -45,6 +50,24 @@ def node_homophily(A, labels):
     num_nodes = A.shape[0]
     return node_homophily_edge_idx(edge_idx, labels, num_nodes)
 
+def each_node_homophily(A, labels, edge_index, dataset_name):
+    """ homophily for each node
+    """
+    edge_index = torch.cat([edge_index,edge_index[[1,0],:]],dim=1)
+    src_node, targ_node = edge_index[0], edge_index[1]
+    edge_idx = torch.tensor(np.vstack((src_node, targ_node)), dtype=torch.long).contiguous()
+    labels = torch.tensor(labels)
+    num_nodes = labels.shape[0]
+
+    edge_index = remove_self_loops(edge_idx)[0]
+    hs = torch.zeros(num_nodes).float()
+    degs = torch.bincount(edge_index[0,:]).float()
+    matches = (labels[edge_index[0,:]] == labels[edge_index[1,:]]).float()
+    hs = hs.scatter_add(0, edge_index[0,:], matches.reshape(-1)) / degs
+    return hs
+    torch.save(hs,f'../res/hom/HOM_{dataset_name}.pt')
+    return node_homophily_edge_idx(edge_idx, labels, num_nodes)
+
 def edge_homophily_edge_idx(edge_idx, labels):
     """ edge_idx is 2x(number edges) """
     edge_index = remove_self_loops(edge_idx)[0]
@@ -57,7 +80,7 @@ def edge_homophily_edge_idx(edge_idx, labels):
 def node_homophily_edge_idx(edge_idx, labels, num_nodes):
     """ edge_idx is 2 x(number edges) """
     edge_index = remove_self_loops(edge_idx)[0]
-    hs = torch.zeros(num_nodes)
+    hs = torch.zeros(num_nodes).float()
     degs = torch.bincount(edge_index[0,:]).float()
     matches = (labels[edge_index[0,:]] == labels[edge_index[1,:]]).float()
     hs = hs.scatter_add(0, edge_index[0,:], matches) / degs

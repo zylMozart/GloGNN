@@ -14,7 +14,7 @@ import os
 from load_data import load_twitch, load_fb100, load_twitch_gamer, DATAPATH
 from data_utils import rand_train_test_idx, even_quantile_labels, to_sparse_tensor, dataset_drive_url
 
-from homophily import our_measure, edge_homophily_edge_idx
+from homophily import our_measure, edge_homophily_edge_idx, each_node_homophily, node_homophily
 
 from torch_geometric.datasets import Planetoid
 from torch_geometric.transforms import NormalizeFeatures
@@ -157,6 +157,8 @@ def load_fb100_dataset(filename):
                      'node_feat': node_feat,
                      'num_nodes': num_nodes}
     dataset.label = torch.tensor(label)
+    hom = each_node_homophily(None, label, edge_index, dataset.name)
+    dataset.hom = hom
     return dataset
 
 
@@ -190,6 +192,8 @@ def load_arxiv_year_dataset(nclass=5):
     label = even_quantile_labels(
         dataset.graph['node_year'].flatten(), nclass, verbose=False)
     dataset.label = torch.as_tensor(label).reshape(-1, 1)
+    hom = each_node_homophily(None, dataset.label.reshape(-1), dataset.graph['edge_index'], filename)
+    dataset.hom = hom
     return dataset
 
 
@@ -251,7 +255,8 @@ def load_pokec_mat():
 
     label = fulldata['label'].flatten()
     dataset.label = torch.tensor(label, dtype=torch.long)
-
+    hom = each_node_homophily(None, label, edge_index, dataset.name)
+    dataset.hom = hom
     return dataset
 
 
@@ -278,7 +283,7 @@ def load_snap_patents_mat(nclass=5):
     years = fulldata['years'].flatten()
     label = even_quantile_labels(years, nclass, verbose=False)
     dataset.label = torch.tensor(label, dtype=torch.long)
-
+    hom = each_node_homophily(None, label, edge_index, dataset.name)
     return dataset
 
 
@@ -301,6 +306,9 @@ def load_yelpchi_dataset():
                      'node_feat': node_feat,
                      'edge_feat': None,
                      'num_nodes': num_nodes}
+    # Calculate Homophily
+    hom = each_node_homophily(A, label, edge_index, dataset.name)
+    dataset.hom = hom
     label = torch.tensor(label, dtype=torch.long)
     dataset.label = label
     return dataset
@@ -372,6 +380,8 @@ def load_genius():
                      'edge_feat': None,
                      'node_feat': node_feat,
                      'num_nodes': num_nodes}
+    hom = each_node_homophily(None, label, edge_index, dataset.name)
+    dataset.hom = hom
     dataset.label = label
     return dataset
 
@@ -400,6 +410,9 @@ def load_twitch_gamer_dataset(task="mature", normalize=True):
                      'node_feat': node_feat,
                      'edge_feat': None,
                      'num_nodes': num_nodes}
+    # Calculate Homophily
+    hom = each_node_homophily(None, label, edge_index, dataset.name)
+    dataset.hom = hom
     dataset.label = torch.tensor(label)
     return dataset
 

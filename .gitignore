@@ -2,3 +2,14 @@
 large-scale/data/
 large-scale/dataset/
 *.pt
+runs
+__pycache__
+.vscode
+results
+scripts
+pickles
+res
+*.gz
+*.txt
+*.md
+dataset/

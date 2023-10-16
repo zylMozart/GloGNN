@@ -158,20 +158,23 @@ def gen_normalized_adjs(dataset):
     return DAD, DA, AD
 
 
-def eval_acc(y_true, y_pred):
+def eval_acc(y_true, y_pred, hom):
     acc_list = []
     y_true = y_true.detach().cpu().numpy()
     y_pred = y_pred.argmax(dim=-1, keepdim=True).detach().cpu().numpy()
-
+    assert(y_true.shape[1] == 1)
+    label_hom = (hom>=0.8)
+    label_het = (hom<=0.2)
     for i in range(y_true.shape[1]):
         is_labeled = y_true[:, i] == y_true[:, i]
         correct = y_true[is_labeled, i] == y_pred[is_labeled, i]
         acc_list.append(float(np.sum(correct))/len(correct))
+        acc_hom = float(np.sum(correct[label_hom]))/len(correct)
+        acc_het = float(np.sum(correct[label_het]))/len(correct)
+    return sum(acc_list)/len(acc_list), acc_hom, acc_het
 
-    return sum(acc_list)/len(acc_list)
 
-
-def eval_rocauc(y_true, y_pred):
+def eval_rocauc(y_true, y_pred, hom):
     """ adapted from ogb
     https://github.com/snap-stanford/ogb/blob/master/ogb/nodeproppred/evaluate.py"""
     rocauc_list = []
@@ -181,20 +184,25 @@ def eval_rocauc(y_true, y_pred):
         y_pred = F.softmax(y_pred, dim=-1)[:, 1].unsqueeze(1).cpu().numpy()
     else:
         y_pred = y_pred.detach().cpu().numpy()
+        raise Exception('Multi-class needs to handle differently.')
 
     for i in range(y_true.shape[1]):
         # AUC is only defined when there is at least one positive data.
         if np.sum(y_true[:, i] == 1) > 0 and np.sum(y_true[:, i] == 0) > 0:
             is_labeled = y_true[:, i] == y_true[:, i]
             score = roc_auc_score(y_true[is_labeled, i], y_pred[is_labeled, i])
-
+            label_hom = (hom>=0.8)
+            label_het = (hom<=0.2)
+            score_hom = roc_auc_score(y_true[is_labeled, i][label_hom], y_pred[is_labeled, i][label_hom])
+            score_het = roc_auc_score(y_true[is_labeled, i][label_het], y_pred[is_labeled, i][label_het])
+            
             rocauc_list.append(score)
 
     if len(rocauc_list) == 0:
         raise RuntimeError(
             'No positively labeled data available. Cannot compute ROC-AUC.')
 
-    return sum(rocauc_list)/len(rocauc_list)
+    return sum(rocauc_list)/len(rocauc_list),score_hom,score_het
 
 
 @torch.no_grad()
@@ -209,11 +217,11 @@ def evaluate(model, dataset, split_idx, eval_func, result=None, sampling=False, 
             out = model.inference(dataset, subgraph_loader)
 
     train_acc = eval_func(
-        dataset.label[split_idx['train']], out[split_idx['train']])
+        dataset.label[split_idx['train']], out[split_idx['train']], dataset.hom[split_idx['train']])
     valid_acc = eval_func(
-        dataset.label[split_idx['valid']], out[split_idx['valid']])
+        dataset.label[split_idx['valid']], out[split_idx['valid']], dataset.hom[split_idx['valid']])
     test_acc = eval_func(
-        dataset.label[split_idx['test']], out[split_idx['test']])
+        dataset.label[split_idx['test']], out[split_idx['test']], dataset.hom[split_idx['test']])
 
     return train_acc, valid_acc, test_acc, out
 
@@ -230,11 +238,11 @@ def evaluate_mlpnorm(model, x, adj, dataset, split_idx, eval_func, result=None, 
             out = model.inference(dataset, subgraph_loader)
 
     train_acc = eval_func(
-        dataset.label[split_idx['train']], out[split_idx['train']])
+        dataset.label[split_idx['train']], out[split_idx['train']], dataset.hom[split_idx['train']])
     valid_acc = eval_func(
-        dataset.label[split_idx['valid']], out[split_idx['valid']])
+        dataset.label[split_idx['valid']], out[split_idx['valid']], dataset.hom[split_idx['valid']])
     test_acc = eval_func(
-        dataset.label[split_idx['test']], out[split_idx['test']])
+        dataset.label[split_idx['test']], out[split_idx['test']], dataset.hom[split_idx['test']])
 
     return train_acc, valid_acc, test_acc, out
 
@@ -272,11 +280,11 @@ def evaluate_acmgcn(model, x, adj_low, adj_high, dataset, split_idx, eval_func, 
             out = model.inference(dataset, subgraph_loader)
 
     train_acc = eval_func(
-        dataset.label[split_idx['train']], out[split_idx['train']])
+        dataset.label[split_idx['train']], out[split_idx['train']], dataset.hom[split_idx['train']])
     valid_acc = eval_func(
-        dataset.label[split_idx['valid']], out[split_idx['valid']])
+        dataset.label[split_idx['valid']], out[split_idx['valid']], dataset.hom[split_idx['valid']])
     test_acc = eval_func(
-        dataset.label[split_idx['test']], out[split_idx['test']])
+        dataset.label[split_idx['test']], out[split_idx['test']], dataset.hom[split_idx['test']])
 
     return train_acc, valid_acc, test_acc, out
 
@@ -322,7 +330,7 @@ def load_fixed_splits(dataset, sub_dataset):
                 splits_lst[i][key] = torch.as_tensor(splits_lst[i][key])
     return splits_lst
 
-
+# https://drive.google.com/file/d/1fAXtTVQS4CfEk4asqrFw9EPmlUPGbGtJ/view
 dataset_drive_url = {
     'twitch-gamer_feat': '1fA9VIIEI8N0L27MSQfcBzJgRQLvSbrvR',
     'twitch-gamer_edges': '1XLETC6dG3lVl7kDmytEJ52hvDMVdxnZ0',
